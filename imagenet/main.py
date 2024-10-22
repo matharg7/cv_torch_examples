@@ -78,6 +78,7 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 parser.add_argument('--dummy', action='store_true', help="use fake data to benchmark")
+parser.add_argument('--bias_false', action='store_true', help="use to remove bias from the last layer")
 
 best_acc1 = 0
 
@@ -147,6 +148,13 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
+        
+    if args.bias_false:
+        num_features = model.fc.in_features
+        num_classes = model.fc.out_features  # Keep the same number of output classes
+
+        model.fc = torch.nn.Linear(num_features, num_classes, bias=False)
+        print(model.fc.bias)
 
     if not torch.cuda.is_available() and not torch.backends.mps.is_available():
         print('using CPU, this will be slow')
@@ -296,6 +304,7 @@ def main_worker(gpu, ngpus_per_node, args):
         return
 
     for epoch in range(args.start_epoch, args.epochs):
+        break
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
@@ -306,6 +315,7 @@ def main_worker(gpu, ngpus_per_node, args):
         acc1 = validate(val_loader, model, criterion, args)
         
         scheduler.step()
+        
         
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
@@ -369,6 +379,7 @@ def train(train_loader, model, criterion, optimizer, sparsifier, epoch, device, 
 
         if i % args.print_freq == 0:
             progress.display(i + 1)
+            # print(sparsifier)
 
 
 def validate(val_loader, model, criterion, args):
